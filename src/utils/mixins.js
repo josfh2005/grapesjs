@@ -17,7 +17,10 @@ const appendStyles = (styles, opts = {}) => {
   if (stls.length) {
     const href = stls.shift();
 
-    if (!opts.unique || !document.querySelector(`link[href="${href}"]`)) {
+    if (
+      href &&
+      (!opts.unique || !document.querySelector(`link[href="${href}"]`))
+    ) {
       const { head } = document;
       const link = document.createElement('link');
       link.href = href;
@@ -207,8 +210,18 @@ const getPointerEvent = ev =>
 const getKeyCode = ev => ev.which || ev.keyCode;
 const getKeyChar = ev => String.fromCharCode(getKeyCode(ev));
 const isEscKey = ev => getKeyCode(ev) === 27;
+const isObject = val =>
+  val !== null && !Array.isArray(val) && typeof val === 'object';
+const isEmptyObj = val => Object.keys(val).length <= 0;
 
-const capitalize = str => str.charAt(0).toUpperCase() + str.substring(1);
+const capitalize = str => str && str.charAt(0).toUpperCase() + str.substring(1);
+const isComponent = obj => obj && obj.toHTML;
+const isRule = obj => obj && obj.toCSS;
+
+const getViewEl = el => el.__gjsv;
+const setViewEl = (el, view) => {
+  el.__gjsv = view;
+};
 
 export {
   on,
@@ -229,5 +242,11 @@ export {
   getPointerEvent,
   getUnitFromValue,
   capitalize,
-  appendStyles
+  getViewEl,
+  setViewEl,
+  appendStyles,
+  isObject,
+  isEmptyObj,
+  isComponent,
+  isRule
 };

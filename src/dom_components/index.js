@@ -59,6 +59,7 @@ import ComponentImageView from './view/ComponentImageView';
 import ComponentScript from './model/ComponentScript';
 import ComponentScriptView from './view/ComponentScriptView';
 import ComponentSvg from './model/ComponentSvg';
+import ComponentSvgIn from './model/ComponentSvgIn';
 import ComponentSvgView from './view/ComponentSvgView';
 import ComponentComment from './model/ComponentComment';
 import ComponentCommentView from './view/ComponentCommentView';
@@ -134,6 +135,11 @@ export default () => {
       id: 'script',
       model: ComponentScript,
       view: ComponentScriptView
+    },
+    {
+      id: 'svg-in',
+      model: ComponentSvgIn,
+      view: ComponentSvgView
     },
     {
       id: 'svg',
@@ -321,7 +327,7 @@ export default () => {
         [model, evn, handleUpdates],
         [model, 'change:components', handleChangesColl],
         [comps, 'add', handleChanges],
-        [comps, 'remove', handleRemoves],
+        [comps, 'remove reset', handleRemoves],
         [model.get('classes'), 'add remove', handleUpdates]
       ].forEach(els => {
         em.stopListening(els[0], els[1], els[2]);
@@ -338,12 +344,13 @@ export default () => {
         const handleChanges = this.handleChanges.bind(this);
         const handleRemoves = this.handleRemoves.bind(this);
         um.add(coll);
-        [[coll, 'add', handleChanges], [coll, 'remove', handleRemoves]].forEach(
-          els => {
-            em.stopListening(els[0], els[1], els[2]);
-            em.listenTo(els[0], els[1], els[2]);
-          }
-        );
+        [
+          [coll, 'add', handleChanges],
+          [coll, 'remove reset', handleRemoves]
+        ].forEach(els => {
+          em.stopListening(els[0], els[1], els[2]);
+          em.listenTo(els[0], els[1], els[2]);
+        });
       }
     },
 
@@ -351,8 +358,9 @@ export default () => {
      * Triggered when some component is removed
      * @private
      * */
-    handleRemoves(model, value, opts = {}) {
-      !opts.avoidStore && em.handleUpdates(model, value, opts);
+    handleRemoves(m, value, opt) {
+      const opts = opt || value; // in case of reset
+      em.handleUpdates(m, value, opts);
     },
 
     /**
@@ -503,6 +511,7 @@ export default () => {
      * @param {string} [component.content=''] String inside component
      * @param {Object} [component.style={}] Style object
      * @param {Object} [component.attributes={}] Attribute object
+     * @param {Object} opt the options object to be used by the [Components.add]{@link getComponents} method
      * @return {Component|Array<Component>} Component/s added
      * @example
      * // Example of a new component with some extra property
@@ -516,8 +525,8 @@ export default () => {
      *   attributes: { title: 'here' }
      * });
      */
-    addComponent(component) {
-      return this.getComponents().add(component);
+    addComponent(component, opt = {}) {
+      return this.getComponents().add(component, opt);
     },
 
     /**
@@ -535,21 +544,22 @@ export default () => {
      * Remove all components
      * @return {this}
      */
-    clear() {
+    clear(opts = {}) {
       this.getComponents()
         .map(i => i)
-        .forEach(i => i.remove());
+        .forEach(i => i.remove(opts));
       return this;
     },
 
     /**
      * Set components
      * @param {Object|string} components HTML string or components model
+     * @param {Object} opt the options object to be used by the {@link addComponent} method
      * @return {this}
      * @private
      */
-    setComponents(components) {
-      this.clear().addComponent(components);
+    setComponents(components, opt = {}) {
+      this.clear(opt).addComponent(components, opt);
     },
 
     /**
@@ -721,6 +731,17 @@ export default () => {
         });
 
       model && isEmpty(model.get('status')) && model.set('status', state);
+    },
+
+    allById() {
+      return componentsById;
+    },
+
+    destroy() {
+      this.clear();
+      componentView.remove();
+      [c, em, componentsById, component, componentView].forEach(i => (i = {}));
+      this.em = {};
     }
   };
 };

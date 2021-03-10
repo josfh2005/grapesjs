@@ -174,7 +174,6 @@ export default () => ({
       switch (prop) {
         case 'float':
         case 'background-color':
-        case 'background-image':
         case 'text-shadow':
           obj.defaults = 'none';
           break;
@@ -549,7 +548,7 @@ export default () => ({
             'Comic Sans MS, cursive' + ss,
             'Courier New, Courier, monospace',
             'Georgia, serif',
-            'Helvetica, serif',
+            'Helvetica' + ss,
             'Impact, Charcoal' + ss,
             'Lucida Sans Unicode, Lucida Grande' + ss,
             'Tahoma, Geneva' + ss,

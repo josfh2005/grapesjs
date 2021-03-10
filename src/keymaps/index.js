@@ -74,7 +74,8 @@ export default () => {
       },
       'core:component-delete': {
         keys: 'backspace, delete',
-        handler: 'core:component-delete'
+        handler: 'core:component-delete',
+        opts: { prevent: 1 }
       }
     }
   };
@@ -109,7 +110,7 @@ export default () => {
 
       for (let id in defKeys) {
         const value = defKeys[id];
-        this.add(id, value.keys, value.handler);
+        this.add(id, value.keys, value.handler, value.opts || {});
       }
     },
 
@@ -147,11 +148,11 @@ export default () => {
         // It's safer putting handlers resolution inside the callback
         const opt = { event: e, h };
         handler = isString(handler) ? cmd.get(handler) : handler;
-        opts.prevent && canvas.getCanvasView().preventDefault(e);
         const ableTorun = !em.isEditing() && !editor.Canvas.isInputFocused();
         if (ableTorun || opts.force) {
+          opts.prevent && canvas.getCanvasView().preventDefault(e);
           typeof handler == 'object'
-            ? handler.run(editor, 0, opt)
+            ? cmd.runCommand(handler, opt)
             : handler(editor, 0, opt);
           const args = [id, h.shortcut, e];
           em.trigger('keymap:emit', ...args);
@@ -199,7 +200,7 @@ export default () => {
 
       if (keymap) {
         delete keymaps[id];
-        keymaster.unbind(keymap.keys);
+        keymap.keys.split(', ').forEach(k => keymaster.unbind(k.trim()));
         em && em.trigger('keymap:remove', keymap);
         return keymap;
       }
@@ -212,6 +213,12 @@ export default () => {
     removeAll() {
       Object.keys(keymaps).forEach(keymap => this.remove(keymap));
       return this;
+    },
+
+    destroy() {
+      this.removeAll();
+      [em, config, keymaps].forEach(i => (i = {}));
+      this.em = {};
     }
   };
 };

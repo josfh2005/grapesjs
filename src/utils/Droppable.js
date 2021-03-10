@@ -2,16 +2,19 @@
   This class makes the canvas droppable
  */
 
-import { on } from 'utils/mixins';
+import { on, off } from 'utils/mixins';
 import { bindAll, indexOf } from 'underscore';
 
 export default class Droppable {
-  constructor(em) {
+  constructor(em, rootEl) {
     this.em = em;
-    const el = em
-      .get('DomComponents')
-      .getWrapper()
-      .getEl();
+    const el =
+      rootEl ||
+      em
+        .get('Canvas')
+        .getFrames()
+        .map(frame => frame.get('root').getEl());
+    const els = Array.isArray(el) ? el : [el];
     this.el = el;
     this.counter = 0;
     bindAll(
@@ -21,20 +24,24 @@ export default class Droppable {
       'handleDrop',
       'handleDragLeave'
     );
-    on(el, 'dragenter', this.handleDragEnter);
-    on(el, 'dragover', this.handleDragOver);
-    on(el, 'drop', this.handleDrop);
-    on(el, 'dragleave', this.handleDragLeave);
+    els.forEach(el => this.toggleEffects(el, 1));
 
     return this;
+  }
+
+  toggleEffects(el, enable) {
+    const methods = { on, off };
+    const method = enable ? 'on' : 'off';
+    methods[method](el, 'dragenter', this.handleDragEnter);
+    methods[method](el, 'dragover', this.handleDragOver);
+    methods[method](el, 'drop', this.handleDrop);
+    methods[method](el, 'dragleave', this.handleDragLeave);
   }
 
   endDrop(cancel, ev) {
     const { em, dragStop } = this;
     this.counter = 0;
-    this.over = 0;
     dragStop && dragStop(cancel);
-    em.runDefault({ preserveSelected: 1 });
     em.trigger('canvas:dragend', ev);
   }
 
@@ -63,6 +70,7 @@ export default class Droppable {
     let dragStop, dragContent;
     em.stopDefault();
 
+    // Select the right drag provider
     if (em.inAbsoluteMode()) {
       const wrapper = em.get('DomComponents').getWrapper();
       const target = wrapper.append({})[0];
@@ -72,12 +80,13 @@ export default class Droppable {
         center: 1,
         target,
         onEnd: (ev, dragger, { cancelled }) => {
+          let comp;
           if (!cancelled) {
-            const comp = wrapper.append(content)[0];
+            comp = wrapper.append(content)[0];
             const { left, top, position } = target.getStyle();
-            comp.setStyle({ left, top, position });
-            this.handleDragEnd(comp, dt);
+            comp.addStyle({ left, top, position });
           }
+          this.handleDragEnd(comp, dt);
           target.remove();
         }
       });
@@ -114,10 +123,13 @@ export default class Droppable {
   }
 
   handleDragEnd(model, dt) {
-    if (!model) return;
     const { em } = this;
-    em.set('dragResult', model);
-    em.trigger('canvas:drop', dt, model);
+    this.over = 0;
+    if (model) {
+      em.set('dragResult', model);
+      em.trigger('canvas:drop', dt, model);
+    }
+    em.runDefault({ preserveSelected: 1 });
   }
 
   /**
@@ -129,6 +141,10 @@ export default class Droppable {
     this.em.trigger('canvas:dragover', ev);
   }
 
+  /**
+   * WARNING: This function might fail to run on drop, for example, when the
+   * drop, accidentally, happens on some external element (DOM not inside the iframe)
+   */
   handleDrop(ev) {
     ev.preventDefault();
     const { dragContent } = this;
@@ -175,6 +191,9 @@ export default class Droppable {
     } else if (indexOf(types, 'text/json') >= 0) {
       const json = dataTransfer.getData('text/json');
       json && (content = JSON.parse(json));
+    } else if (types.length === 1 && types[0] === 'text/plain') {
+      // Avoid dropping non-selectable and non-editable text nodes inside the editor
+      content = `<div>${content}</div>`;
     }
 
     const result = { content };

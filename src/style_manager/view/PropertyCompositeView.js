@@ -27,6 +27,12 @@ export default PropertyView.extend({
     PropertyView.prototype.clear.apply(this, arguments);
   },
 
+  remove() {
+    this.model.get('properties').reset();
+    PropertyView.prototype.remove.apply(this, arguments);
+    ['properties', 'props', '$props'].forEach(i => (this[i] = {}));
+  },
+
   /**
    * Renders input
    * */
@@ -75,7 +81,7 @@ export default PropertyView.extend({
     const model = this.model;
 
     var result = {
-      config: this.config,
+      config: { ...this.config, highlightComputed: 0 },
       collection: this.props,
       target: this.target,
       propTarget: this.propTarget,

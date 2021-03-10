@@ -1,3 +1,4 @@
+import Selector from 'selector_manager/model/Selector';
 import Selectors from 'selector_manager/model/Selectors';
 import ClassTagsView from 'selector_manager/view/ClassTagsView';
 
@@ -47,21 +48,18 @@ describe('E2E tests', () => {
       tagEl = instClassTagViewer(gjs, fixtures);
     });
 
-    test('Assign correctly new class to component', done => {
+    test('Assign correctly new class to component', () => {
       var model = components.add({});
       expect(model.get('classes').length).toEqual(0);
       gjs.select(model);
-      setTimeout(() => {
-        tagEl.addNewTag('test');
-        expect(model.get('classes').length).toEqual(1);
-        expect(
-          model
-            .get('classes')
-            .at(0)
-            .get('name')
-        ).toEqual('test');
-        done();
-      });
+      tagEl.addNewTag('test');
+      expect(model.get('classes').length).toEqual(1);
+      expect(
+        model
+          .get('classes')
+          .at(0)
+          .get('name')
+      ).toEqual('test');
     });
 
     test('Classes from components are correctly imported inside main container', () => {
@@ -82,23 +80,20 @@ describe('E2E tests', () => {
       expect(clModel).toEqual(clModel2);
     });
 
-    test('Can assign only one time the same class on selected component and the class viewer', done => {
+    test('Can assign only one time the same class on selected component and the class viewer', () => {
       var model = components.add({});
       gjs.select(model);
-      setTimeout(() => {
-        tagEl.addNewTag('test');
-        tagEl.addNewTag('test');
-        expect(model.getSelectors().length).toEqual(1);
-        expect(
-          model
-            .getSelectors()
-            .at(0)
-            .get('name')
-        ).toEqual('test');
-        expect(tagEl.collection.length).toEqual(1);
-        expect(tagEl.collection.at(0).get('name')).toEqual('test');
-        done();
-      });
+      tagEl.addNewTag('test');
+      tagEl.addNewTag('test');
+      expect(model.getSelectors().length).toEqual(1);
+      expect(
+        model
+          .getSelectors()
+          .at(0)
+          .get('name')
+      ).toEqual('test');
+      expect(tagEl.collection.length).toEqual(1);
+      expect(tagEl.collection.at(0).get('name')).toEqual('test');
     });
 
     test('Removing from container removes also from selected component', () => {
@@ -112,19 +107,53 @@ describe('E2E tests', () => {
       setTimeout(() => expect(model.get('classes').length).toEqual(0));
     });
 
-    test('Trigger correctly event on target with new class add', done => {
+    test('Trigger correctly event on target with new class add', () => {
       var spy = sinon.spy();
       var model = components.add({});
       gjs.select(model);
-      setTimeout(() => {
-        tagEl.addNewTag('test');
-        gjs.editor.on('component:update:classes', spy);
-        tagEl.addNewTag('test');
-        expect(spy.called).toEqual(false);
-        tagEl.addNewTag('test2');
-        expect(spy.called).toEqual(true);
-        done();
+      tagEl.addNewTag('test');
+      gjs.editor.on('component:update:classes', spy);
+      tagEl.addNewTag('test');
+      expect(spy.called).toEqual(false);
+      tagEl.addNewTag('test2');
+      expect(spy.called).toEqual(true);
+    });
+
+    test('Selectors are properly transformed to JSON', () => {
+      const model = components.add({
+        classes: [
+          'test1',
+          '.test1a',
+          '#test2',
+          { name: 'test3', label: 'test3' },
+          { name: 'test4', label: 'test4a' },
+          { name: 'test5' },
+          { name: 'test6', type: Selector.TYPE_CLASS },
+          { name: 'test7', type: Selector.TYPE_ID },
+          { name: 'test8', type: Selector.TYPE_CLASS, protected: 1 },
+          { name: 'test9', type: Selector.TYPE_ID, protected: 1 },
+          { label: 'test10' },
+          { label: 'test11', type: Selector.TYPE_ID },
+          { label: 'test12', protected: 1 }
+        ]
       });
+
+      const modelTr = JSON.parse(JSON.stringify(model));
+      expect(modelTr.classes).toEqual([
+        'test1',
+        'test1a',
+        '#test2',
+        'test3',
+        { name: 'test4', label: 'test4a' },
+        'test5',
+        'test6',
+        '#test7',
+        { name: 'test8', protected: 1 },
+        { name: 'test9', type: Selector.TYPE_ID, protected: 1 },
+        'test10',
+        '#test11',
+        { name: 'test12', protected: 1 }
+      ]);
     });
   });
 });

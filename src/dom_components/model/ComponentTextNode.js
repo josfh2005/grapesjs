@@ -4,13 +4,19 @@ export default Component.extend(
   {
     defaults: {
       ...Component.prototype.defaults,
+      tagName: '',
       droppable: false,
       layerable: false,
       editable: true
     },
 
     toHTML() {
-      return this.get('content');
+      return this.get('content')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
   },
   {

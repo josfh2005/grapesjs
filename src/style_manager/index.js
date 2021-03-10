@@ -37,6 +37,7 @@ import { isElement } from 'underscore';
 import defaults from './config/config';
 import Sectors from './model/Sectors';
 import Properties from './model/Properties';
+import PropertyFactory from './model/PropertyFactory';
 import SectorsView from './view/SectorsView';
 
 export default () => {
@@ -45,6 +46,8 @@ export default () => {
   var sectors, SectView;
 
   return {
+    PropertyFactory: PropertyFactory(),
+
     /**
      * Name of the module
      * @type {String}
@@ -82,7 +85,8 @@ export default () => {
     },
 
     onLoad() {
-      sectors.add(c.sectors);
+      // Use silent as sectors' view will be created and rendered on StyleManager.render
+      sectors.add(c.sectors, { silent: true });
     },
 
     postRender() {
@@ -203,21 +207,24 @@ export default () => {
     /**
      * Get property by its CSS name and sector id
      * @param  {string} sectorId Sector id
-     * @param  {string} name CSS property name, eg. 'min-height'
+     * @param  {string} name CSS property name (or id), eg. 'min-height'
      * @return {Property|null}
      * @example
      * var property = styleManager.getProperty('mySector','min-height');
      */
     getProperty(sectorId, name) {
       const sector = this.getSector(sectorId, { warn: 1 });
-      let prop = null;
+      let prop;
 
       if (sector) {
-        prop = sector.get('properties').where({ property: name });
-        prop = prop.length == 1 ? prop[0] : prop;
+        prop = sector
+          .get('properties')
+          .filter(
+            prop => prop.get('property') === name || prop.get('id') === name
+          )[0];
       }
 
-      return prop;
+      return prop || null;
     },
 
     /**
@@ -256,8 +263,9 @@ export default () => {
      * @param  {Model} model
      * @return {Model}
      */
-    getModelToStyle(model) {
+    getModelToStyle(model, options = {}) {
       const em = c.em;
+      const { skipAdd } = options;
       const classes = model.get('classes');
       const id = model.getId();
 
@@ -265,10 +273,14 @@ export default () => {
         const config = em.getConfig();
         const um = em.get('UndoManager');
         const cssC = em.get('CssComposer');
-        const state = !config.devicePreviewMode ? model.get('state') : '';
+        const sm = em.get('SelectorManager');
+        const smConf = sm ? sm.getConfig() : {};
+        const state = !config.devicePreviewMode ? em.get('state') : '';
         const valid = classes.getStyleable();
         const hasClasses = valid.length;
-        const opts = { state };
+        const useClasses = !smConf.componentFirst || options.useClasses;
+        const addOpts = { noCount: 1 };
+        const opts = { state, addOpts };
         let rule;
 
         // I stop undo manager here as after adding the CSSRule (generally after
@@ -277,16 +289,16 @@ export default () => {
         // #268
         um.stop();
 
-        if (hasClasses) {
+        if (hasClasses && useClasses) {
           const deviceW = em.getCurrentMedia();
           rule = cssC.get(valid, state, deviceW);
 
-          if (!rule) {
-            rule = cssC.add(valid, state, deviceW);
+          if (!rule && !skipAdd) {
+            rule = cssC.add(valid, state, deviceW, {}, addOpts);
           }
         } else if (config.avoidInlineStyle) {
           rule = cssC.getIdRule(id, opts);
-          !rule && (rule = cssC.setIdRule(id, {}, opts));
+          !rule && !skipAdd && (rule = cssC.setIdRule(id, {}, opts));
           if (model.is('wrapper')) rule.set('wrapper', 1);
         }
 
@@ -305,15 +317,29 @@ export default () => {
      *                            and `isType` function which recognize the type of the
      *                            passed entity
      *@example
-     * styleManager.addType('my-type', {
-     *  model: {},
-     *  view: {},
-     *  isType: (value) => {
-     *    if (value && value.type == 'my-type') {
-     *      return value;
+     * styleManager.addType('my-custom-prop', {
+     *    create({ props, change }) {
+     *      const el = document.createElement('div');
+     *      el.innerHTML = '<input type="range" class="my-input" min="10" max="50"/>';
+     *      const inputEl = el.querySelector('.my-input');
+     *      inputEl.addEventListener('change', event => change({ event })); // change will trigger the emit
+     *      inputEl.addEventListener('input', event => change({ event, complete: false }));
+     *      return el;
+     *    },
+     *    emit({ props, updateStyle }, { event, complete }) {
+     *      const { value } = event.target;
+     *      const valueRes = value + 'px';
+     *      // Pass a string value for the exact CSS property or an object containing multiple properties
+     *      // eg. updateStyle({ [props.property]: valueRes, color: 'red' });
+     *      updateStyle(valueRes, { complete });
+     *    },
+     *    update({ value, el }) {
+     *      el.querySelector('.my-input').value = parseInt(value, 10);
+     *    },
+     *    destroy() {
+     *      // In order to prevent memory leaks, use this method to clean, eventually, created instances, global event listeners, etc.
      *    }
-     *  },
-     * })
+     *})
      */
     addType(id, definition) {
       properties.addType(id, definition);
@@ -389,6 +415,16 @@ export default () => {
     _logNoSector(sectorId) {
       const { em } = this;
       em && em.logWarning(`'${sectorId}' sector not found`);
+    },
+
+    destroy() {
+      [properties, sectors].forEach(coll => {
+        coll.reset();
+        coll.stopListening();
+      });
+      SectView.remove();
+      [c, properties, sectors, SectView].forEach(i => (i = {}));
+      this.em = {};
     }
   };
 };

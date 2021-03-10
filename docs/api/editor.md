@@ -37,6 +37,9 @@ editor.on('EVENT-NAME', (some, argument) => {
 -   `component:toggled` - Component selection changed, toggled model is passed as an argument to the callback
 -   `component:type:add` - New component type added, the new type is passed as an argument to the callback
 -   `component:type:update` - Component type updated, the updated type is passed as an argument to the callback
+-   `component:drag:start` - Component drag started. Passed an object, to the callback, containing the `target` (component to drag), `parent` (parent of the component) and `index` (component index in the parent)
+-   `component:drag` - During component drag. Passed the same object as in `component:drag:start` event, but in this case, `parent` and `index` are updated by the current pointer
+-   `component:drag:end` - Component drag ended. Passed the same object as in `component:drag:start` event, but in this case, `parent` and `index` are updated by the final pointer
 
 ### Blocks
 
@@ -93,7 +96,10 @@ editor.on('EVENT-NAME', (some, argument) => {
 
 ### Selectors
 
--   `selector:add` - Triggers when a new selector/class is created
+-   `selector:add` - New selector is add. Passes the new selector as an argument
+-   `selector:remove` - Selector removed. Passes the removed selector as an argument
+-   `selector:update` - Selector updated. Passes the updated selector as an argument
+-   `selector:state` - State changed. Passes the new state value as an argument
 
 ### RTE
 
@@ -104,6 +110,11 @@ editor.on('EVENT-NAME', (some, argument) => {
 
 -   `modal:open` - Modal is opened
 -   `modal:close` - Modal is closed
+
+### Parser
+
+-   `parse:html` - On HTML parse, an object containing the input and the output of the parser is passed as an argument
+-   `parse:css` - On CSS parse, an object containing the input and the output of the parser is passed as an argument
 
 ### Commands
 
@@ -180,6 +191,7 @@ Set components inside editor's canvas. This method overrides actual components
 ### Parameters
 
 -   `components` **([Array][5]&lt;[Object][3]> | [Object][3] \| [string][2])** HTML string or components model
+-   `opt` **[Object][3]** the options object to be used by the [setComponents][em#setComponents][6] method (optional, default `{}`)
 
 ### Examples
 
@@ -234,6 +246,7 @@ Set style inside editor's canvas. This method overrides actual style
 ### Parameters
 
 -   `style` **([Array][5]&lt;[Object][3]> | [Object][3] \| [string][2])** CSS string or style model
+-   `opt` **[Object][3]** the options object to be used by the [setStyle][em#setStyle][7] method (optional, default `{}`)
 
 ### Examples
 
@@ -276,7 +289,7 @@ Select a component
 
 ### Parameters
 
--   `el` **(Component | [HTMLElement][6])** Component to select
+-   `el` **(Component | [HTMLElement][8])** Component to select
 -   `opts` **[Object][3]?** Options
     -   `opts.scroll` **[Boolean][4]?** Scroll canvas to the selected element
 
@@ -297,7 +310,7 @@ Add component to selection
 
 ### Parameters
 
--   `el` **(Component | [HTMLElement][6] \| [Array][5])** Component to select
+-   `el` **(Component | [HTMLElement][8] \| [Array][5])** Component to select
 
 ### Examples
 
@@ -313,7 +326,7 @@ Remove component from selection
 
 ### Parameters
 
--   `el` **(Component | [HTMLElement][6] \| [Array][5])** Component to select
+-   `el` **(Component | [HTMLElement][8] \| [Array][5])** Component to select
 
 ### Examples
 
@@ -329,7 +342,7 @@ Toggle component selection
 
 ### Parameters
 
--   `el` **(Component | [HTMLElement][6] \| [Array][5])** Component to select
+-   `el` **(Component | [HTMLElement][8] \| [Array][5])** Component to select
 
 ### Examples
 
@@ -410,7 +423,7 @@ Store data to the current storage
 
 ### Parameters
 
--   `clb` **[Function][7]** Callback function
+-   `clb` **[Function][9]** Callback function
 
 Returns **[Object][3]** Stored data
 
@@ -420,7 +433,7 @@ Load data from the current storage
 
 ### Parameters
 
--   `clb` **[Function][7]** Callback function
+-   `clb` **[Function][9]** Callback function
 
 Returns **[Object][3]** Stored data
 
@@ -429,14 +442,28 @@ Returns **[Object][3]** Stored data
 Returns container element. The one which was indicated as 'container'
 on init method
 
-Returns **[HTMLElement][6]** 
+Returns **[HTMLElement][8]** 
 
 ## getDirtyCount
 
 Return the count of changes made to the content and not yet stored.
 This count resets at any `store()`
 
-Returns **[number][8]** 
+Returns **[number][10]** 
+
+## refresh
+
+Update editor dimension offsets
+
+This method could be useful when you update, for example, some position
+of the editor element (eg. canvas, panels, etc.) with CSS, where without
+refresh you'll get misleading position of tools
+
+### Parameters
+
+-   `opts`  
+-   `options` **[Object][3]?** Options
+    -   `options.tools` **[Boolean][4]** Update the position of tools (eg. rich text editor, component highlighter, etc.) (optional, default `false`)
 
 ## setCustomRte
 
@@ -484,7 +511,7 @@ custom parser, pass `null` as the argument
 
 ### Parameters
 
--   `parser` **([Function][7] | null)** Parser function
+-   `parser` **([Function][9] | null)** Parser function
 
 ### Examples
 
@@ -506,7 +533,7 @@ Returns **this**
 ## setDragMode
 
 Change the global drag mode of components.
-To get more about this feature read: [https://github.com/artf/grapesjs/issues/1936][9]
+To get more about this feature read: [https://github.com/artf/grapesjs/issues/1936][11]
 
 ### Parameters
 
@@ -569,7 +596,7 @@ Attach event
 ### Parameters
 
 -   `event` **[string][2]** Event name
--   `callback` **[Function][7]** Callback function
+-   `callback` **[Function][9]** Callback function
 
 Returns **this** 
 
@@ -580,7 +607,7 @@ Attach event and detach it after the first run
 ### Parameters
 
 -   `event` **[string][2]** Event name
--   `callback` **[Function][7]** Callback function
+-   `callback` **[Function][9]** Callback function
 
 Returns **this** 
 
@@ -591,7 +618,7 @@ Detach event
 ### Parameters
 
 -   `event` **[string][2]** Event name
--   `callback` **[Function][7]** Callback function
+-   `callback` **[Function][9]** Callback function
 
 Returns **this** 
 
@@ -613,7 +640,7 @@ Destroy the editor
 
 Render editor
 
-Returns **[HTMLElement][6]** 
+Returns **[HTMLElement][8]** 
 
 [1]: https://github.com/artf/grapesjs/blob/master/src/editor/config/config.js
 
@@ -625,10 +652,14 @@ Returns **[HTMLElement][6]**
 
 [5]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
 
-[6]: https://developer.mozilla.org/docs/Web/HTML/Element
+[6]: em#setComponents
 
-[7]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function
+[7]: em#setStyle
 
-[8]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Number
+[8]: https://developer.mozilla.org/docs/Web/HTML/Element
 
-[9]: https://github.com/artf/grapesjs/issues/1936
+[9]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function
+
+[10]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Number
+
+[11]: https://github.com/artf/grapesjs/issues/1936

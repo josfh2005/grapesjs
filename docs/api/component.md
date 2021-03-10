@@ -137,13 +137,13 @@ Returns **[Array][4]** Array of components
 
 ## findType
 
-Find all inner components by component id.
+Find all inner components by component type.
 The advantage of this method over `find` is that you can use it
 also before rendering the component
 
 ### Parameters
 
--   `id` **[String][1]** Component id
+-   `type` **[String][1]** Component type
 
 ### Examples
 
@@ -172,6 +172,36 @@ component.closest('div.some-class');
 
 Returns **[Component][9]** 
 
+## closestType
+
+Find the closest parent component by its type.
+The advantage of this method over `closest` is that you can use it
+also before rendering the component
+
+### Parameters
+
+-   `type` **[String][1]** Component type
+
+### Examples
+
+```javascript
+const Section = component.closestType('section');
+console.log(Section);
+```
+
+Returns **[Component][9]** Found component, otherwise `undefined`
+
+## contains
+
+The method returns a Boolean value indicating whether the passed
+component is a descendant of a given component
+
+### Parameters
+
+-   `component` **[Component][9]** Component to check
+
+Returns **[Boolean][3]** 
+
 ## replaceWith
 
 Replace a component with another one
@@ -197,6 +227,7 @@ Update attributes of the component
 
 -   `attrs` **[Object][2]** Key value attributes
 -   `opts`   (optional, default `{}`)
+-   `options` **[Object][2]** Options for the model update
 
 ### Examples
 
@@ -213,6 +244,8 @@ Add attributes to the component
 ### Parameters
 
 -   `attrs` **[Object][2]** Key value attributes
+-   `opts`   (optional, default `{}`)
+-   `options` **[Object][2]** Options for the model update
 
 ### Examples
 
@@ -359,9 +392,23 @@ console.log(collection.length);
 
 Returns **(Collection | [Array][4]&lt;[Component][9]>)** 
 
+## empty
+
+Remove all inner components
+
+-   @return {this}
+
+### Parameters
+
+-   `opts`   (optional, default `{}`)
+
 ## parent
 
 Get the parent component, if exists
+
+### Parameters
+
+-   `opts`   (optional, default `{}`)
 
 ### Examples
 
@@ -485,6 +532,7 @@ Return HTML string of the component
 ### Parameters
 
 -   `opts` **[Object][2]** Options (optional, default `{}`)
+    -   `opts.tag` **[String][1]?** Custom tagName
     -   `opts.attributes` **([Object][2] \| [Function][6])** You can pass an object of custom attributes to replace
         with the current one or you can even pass a function to generate attributes dynamically (optional, default `null`)
 
@@ -515,6 +563,14 @@ component.toHTML({
 
 Returns **[String][1]** HTML string
 
+## getChangedProps
+
+Return an object containing only changed props
+
+### Parameters
+
+-   `res`  
+
 ## getId
 
 Return the component id
@@ -537,12 +593,20 @@ Returns **this**
 Get the DOM element of the component.
 This works only if the component is already rendered
 
+### Parameters
+
+-   `frame` **Frame** Specific frame from which taking the element
+
 Returns **[HTMLElement][12]** 
 
 ## getView
 
 Get the View of the component.
 This works only if the component is already rendered
+
+### Parameters
+
+-   `frame` **Frame** Get View of a specific frame
 
 Returns **ComponentView** 
 
@@ -568,6 +632,29 @@ Returns **this**
 
 Remove the component
 
+### Parameters
+
+-   `opts`   (optional, default `{}`)
+
+Returns **this** 
+
+## move
+
+Move the component to another destination component
+
+### Parameters
+
+-   `component` **[Component][9]** Destination component (so the current one will be appended as a child)
+-   `opts` **[Object][2]** Options for the append action (optional, default `{}`)
+
+### Examples
+
+```javascript
+// Move the selected component on top of the wrapper
+const dest = editor.getWrapper();
+editor.getSelected().move(dest, { at: 0 });
+```
+
 Returns **this** 
 
 ## getList
@@ -591,6 +678,7 @@ This method is used in Components.js just after the parsing
 -   `components`  
 -   `styles`   (optional, default `[]`)
 -   `list`   (optional, default `{}`)
+-   `opts`   (optional, default `{}`)
 
 [1]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String
 

@@ -31,7 +31,10 @@ export default () => {
   let um;
   let config;
   let beforeCache;
-  const configDef = {};
+  const configDef = {
+    maximumStackLength: 500
+  };
+  const hasSkip = opts => opts.avoidStore || opts.noUndo;
 
   return {
     name: 'UndoManager',
@@ -45,11 +48,11 @@ export default () => {
       config = { ...opts, ...configDef };
       em = config.em;
       this.em = em;
-      um = new UndoManager({ track: true, register: [] });
+      um = new UndoManager({ track: true, register: [], ...config });
       um.changeUndoType('change', { condition: false });
       um.changeUndoType('add', {
         on(model, collection, options = {}) {
-          if (options.avoidStore) return;
+          if (hasSkip(options)) return;
           return {
             object: collection,
             before: undefined,
@@ -60,7 +63,7 @@ export default () => {
       });
       um.changeUndoType('remove', {
         on(model, collection, options = {}) {
-          if (options.avoidStore) return;
+          if (hasSkip(options)) return;
           return {
             object: collection,
             before: model,
@@ -73,13 +76,13 @@ export default () => {
         on(object, value, opt = {}) {
           !beforeCache && (beforeCache = object.previousAttributes());
 
-          if (opt.avoidStore) {
+          if (hasSkip(opt)) {
             return;
           } else {
             const result = {
               object,
               before: beforeCache,
-              after: object.toJSON()
+              after: object.toJSON({ keepSymbols: 1 })
             };
             beforeCache = null;
             return result;
@@ -180,8 +183,8 @@ export default () => {
      * @example
      * um.undo();
      */
-    undo() {
-      !em.isEditing() && um.undo(1);
+    undo(all = true) {
+      !em.isEditing() && um.undo(all);
       return this;
     },
 
@@ -202,8 +205,8 @@ export default () => {
      * @example
      * um.redo();
      */
-    redo() {
-      !em.isEditing() && um.redo(1);
+    redo(all = true) {
+      !em.isEditing() && um.redo(all);
       return this;
     },
 
@@ -250,6 +253,35 @@ export default () => {
     },
 
     /**
+     * Get grouped undo manager stack.
+     * The difference between `getStack` is when you do multiple operations at a time,
+     * like appending multiple components:
+     * `editor.getWrapper().append(`<div>C1</div><div>C2</div>`);`
+     * `getStack` will return a collection length of 2.
+     *  `getStackGroup` instead will group them as a single operation (the first
+     * inserted component will be returned in the list) by returning an array length of 1.
+     * @return {Array}
+     */
+    getStackGroup() {
+      const result = [];
+      const inserted = [];
+
+      this.getStack().forEach(item => {
+        const index = item.get('magicFusionIndex');
+        if (inserted.indexOf(index) < 0) {
+          inserted.push(index);
+          result.push(item);
+        }
+      });
+
+      return result;
+    },
+
+    getPointer() {
+      return this.getStack().pointer;
+    },
+
+    /**
      * Clear the stack
      * @return {this}
      * @example
@@ -262,6 +294,12 @@ export default () => {
 
     getInstance() {
       return um;
+    },
+
+    destroy() {
+      this.clear().removeAll();
+      [em, um, config, beforeCache].forEach(i => (i = {}));
+      this.em = {};
     }
   };
 };

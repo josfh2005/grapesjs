@@ -2,6 +2,7 @@ import { isArray } from 'underscore';
 
 export default {
   run(ed, sender, opts = {}) {
+    const toSelect = [];
     let components = opts.component || ed.getSelectedAll();
     components = isArray(components) ? [...components] : [components];
 
@@ -11,15 +12,15 @@ export default {
 
     components.forEach(component => {
       if (!component || !component.get('removable')) {
-        console.warn('The element is not removable', component);
-        return;
+        return this.em.logWarning('The element is not removable', {
+          component
+        });
       }
-      if (component) {
-        const coll = component.collection;
-        component.trigger('component:destroy');
-        coll && coll.remove(component);
-      }
+      component.remove();
+      component.collection && toSelect.push(component);
     });
+
+    toSelect.length && ed.select(toSelect);
 
     return components;
   }

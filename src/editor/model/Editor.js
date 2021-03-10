@@ -4,12 +4,15 @@ import {
   isArray,
   contains,
   toArray,
-  keys
+  keys,
+  bindAll
 } from 'underscore';
+import $ from 'cash-dom';
 import Backbone from 'backbone';
 import Extender from 'utils/extender';
 import { getModel } from 'utils/mixins';
 
+Backbone.$ = $;
 const deps = [
   require('utils'),
   require('i18n'),
@@ -18,8 +21,8 @@ const deps = [
   require('storage_manager'),
   require('device_manager'),
   require('parser'),
-  require('selector_manager'),
   require('style_manager'),
+  require('selector_manager'),
   require('modal_dialog'),
   require('code_manager'),
   require('panels'),
@@ -43,7 +46,6 @@ Extender({
   $: Backbone.$
 });
 
-const $ = Backbone.$;
 const logs = {
   debug: console.log,
   info: console.info,
@@ -75,10 +77,12 @@ export default Backbone.Model.extend({
     this.set('modules', []);
     this.set('toLoad', []);
     this.set('storables', []);
+    this.set('selected', new Collection());
     this.set('dmode', c.dragMode);
     const el = c.el;
     const log = c.log;
     const toLog = log === true ? keys(logs) : isArray(log) ? log : [];
+    bindAll(this, 'initBaseColorPicker');
 
     if (el && c.fromElement) this.config.components = el.innerHTML;
     this.attrsOrig = el
@@ -221,7 +225,11 @@ export default Backbone.Model.extend({
    * @return {this}
    * @private
    */
-  init(editor) {
+  init(editor, opts = {}) {
+    if (this.destroyed) {
+      this.initialize(opts);
+      this.destroyed = 0;
+    }
     this.set('Editor', editor);
   },
 
@@ -239,15 +247,13 @@ export default Backbone.Model.extend({
    * */
   handleUpdates(model, val, opt = {}) {
     // Component has been added temporarily - do not update storage or record changes
-    if (opt.temporary) {
+    if (opt.temporary || opt.noCount || opt.avoidStore) {
       return;
     }
 
-    timedInterval && clearInterval(timedInterval);
+    timedInterval && clearTimeout(timedInterval);
     timedInterval = setTimeout(() => {
-      if (!opt.avoidStore) {
-        this.set('changesCount', this.get('changesCount') + 1, opt);
-      }
+      this.set('changesCount', this.get('changesCount') + 1, opt);
     }, 0);
   },
 
@@ -279,7 +285,8 @@ export default Backbone.Model.extend({
    * @private
    */
   getSelectedAll() {
-    return this.get('selected').models;
+    const sel = this.get('selected');
+    return (sel && sel.models) || [];
   },
 
   /**
@@ -289,10 +296,13 @@ export default Backbone.Model.extend({
    * @private
    */
   setSelected(el, opts = {}) {
-    const { scroll } = opts;
+    const { event } = opts;
+    const ctrlKey = event && (event.ctrlKey || event.metaKey);
+    const { shiftKey } = event || {};
     const multiple = isArray(el);
     const els = multiple ? el : [el];
     const selected = this.get('selected');
+    const mltSel = this.getConfig('multipleSelection');
     let added;
 
     // If an array is passed remove all selected
@@ -302,12 +312,52 @@ export default Backbone.Model.extend({
     els.forEach(el => {
       const model = getModel(el, $);
       if (model && !model.get('selectable')) return;
+
+      // Hanlde multiple selection
+      if (ctrlKey && mltSel) {
+        return this.toggleSelected(model);
+      } else if (shiftKey && mltSel) {
+        this.clearSelection(this.get('Canvas').getWindow());
+        const coll = model.collection;
+        const index = model.index();
+        let min, max;
+
+        // Fin min and max siblings
+        this.getSelectedAll().forEach(sel => {
+          const selColl = sel.collection;
+          const selIndex = sel.index();
+          if (selColl === coll) {
+            if (selIndex < index) {
+              // First model BEFORE the selected one
+              min = isUndefined(min) ? selIndex : Math.max(min, selIndex);
+            } else if (selIndex > index) {
+              // First model AFTER the selected one
+              max = isUndefined(max) ? selIndex : Math.min(max, selIndex);
+            }
+          }
+        });
+
+        if (!isUndefined(min)) {
+          while (min !== index) {
+            this.addSelected(coll.at(min));
+            min++;
+          }
+        }
+
+        if (!isUndefined(max)) {
+          while (max !== index) {
+            this.addSelected(coll.at(max));
+            max--;
+          }
+        }
+
+        return this.addSelected(model);
+      }
+
       !multiple && this.removeSelected(selected.filter(s => s !== model));
       this.addSelected(model, opts);
       added = model;
     });
-
-    scroll && added && this.get('Canvas').scrollTo(added, scroll);
   },
 
   /**
@@ -370,14 +420,19 @@ export default Backbone.Model.extend({
     this.set('componentHovered', model, opts);
   },
 
+  getHovered() {
+    return this.get('componentHovered');
+  },
+
   /**
    * Set components inside editor's canvas. This method overrides actual components
    * @param {Object|string} components HTML string or components model
+   * @param {Object} opt the options object to be used by the [setComponents]{@link setComponents} method
    * @return {this}
    * @private
    */
-  setComponents(components) {
-    return this.get('DomComponents').setComponents(components);
+  setComponents(components, opt = {}) {
+    return this.get('DomComponents').setComponents(components, opt);
   },
 
   /**
@@ -398,13 +453,14 @@ export default Backbone.Model.extend({
   /**
    * Set style inside editor's canvas. This method overrides actual style
    * @param {Object|string} style CSS string or style model
+   * @param {Object} opt the options object to be used by the `CssRules.add` method
    * @return {this}
    * @private
    */
-  setStyle(style) {
-    var rules = this.get('CssComposer').getAll();
-    for (var i = 0, len = rules.length; i < len; i++) rules.pop();
-    rules.add(style);
+  setStyle(style, opt = {}) {
+    const cssc = this.get('CssComposer');
+    cssc.clear(opt);
+    cssc.getAll().add(style, opt);
     return this;
   },
 
@@ -418,19 +474,41 @@ export default Backbone.Model.extend({
   },
 
   /**
+   * Change the selector state
+   * @param {String} value State value
+   * @returns {this}
+   */
+  setState(value) {
+    this.set('state', value);
+    return this;
+  },
+
+  /**
+   * Get the current selector state
+   * @returns {String}
+   */
+  getState() {
+    return this.get('state') || '';
+  },
+
+  /**
    * Returns HTML built inside canvas
-   * @return {string} HTML string
+   * @param {Object} [opts={}] Options
+   * @returns {string} HTML string
    * @private
    */
-  getHtml() {
+  getHtml(opts = {}) {
     const config = this.config;
+    const { optsHtml } = config;
     const exportWrapper = config.exportWrapper;
     const wrapperIsBody = config.wrapperIsBody;
     const js = config.jsInHtml ? this.getJs() : '';
     var wrp = this.get('DomComponents').getComponent();
     var html = this.get('CodeManager').getCode(wrp, 'html', {
       exportWrapper,
-      wrapperIsBody
+      wrapperIsBody,
+      ...optsHtml,
+      ...opts
     });
     html += js ? `<script>${js}</script>` : '';
     return html;
@@ -439,11 +517,12 @@ export default Backbone.Model.extend({
   /**
    * Returns CSS built inside canvas
    * @param {Object} [opts={}] Options
-   * @return {string} CSS string
+   * @returns {string} CSS string
    * @private
    */
   getCss(opts = {}) {
     const config = this.config;
+    const { optsCss } = config;
     const wrapperIsBody = config.wrapperIsBody;
     const avoidProt = opts.avoidProtected;
     const keepUnusedStyles = !isUndefined(opts.keepUnusedStyles)
@@ -458,7 +537,8 @@ export default Backbone.Model.extend({
       this.get('CodeManager').getCode(wrp, 'css', {
         cssc,
         wrapperIsBody,
-        keepUnusedStyles
+        keepUnusedStyles,
+        ...optsCss
       })
     );
   },
@@ -508,7 +588,10 @@ export default Backbone.Model.extend({
    */
   load(clb = null) {
     this.getCacheLoad(1, res => {
-      this.get('storables').forEach(module => module.load(res));
+      this.get('storables').forEach(module => {
+        module.load(res);
+        module.postLoad && module.postLoad(this);
+      });
       clb && clb(res);
     });
   },
@@ -570,7 +653,8 @@ export default Backbone.Model.extend({
    * @private
    */
   stopDefault(opts = {}) {
-    var command = this.get('Commands').get(this.config.defaultCommand);
+    const commands = this.get('Commands');
+    const command = commands.get(this.config.defaultCommand);
     if (!command) return;
     command.stop(this, this, opts);
     this.defaultRunning = 0;
@@ -580,9 +664,10 @@ export default Backbone.Model.extend({
    * Update canvas dimensions and refresh data useful for tools positioning
    * @private
    */
-  refreshCanvas() {
+  refreshCanvas(opts = {}) {
     this.set('canvasOffset', null);
     this.set('canvasOffset', this.get('Canvas').getOffset());
+    opts.tools && this.trigger('canvas:updateTools');
   },
 
   /**
@@ -617,6 +702,18 @@ export default Backbone.Model.extend({
     return this.get('DomComponents').getWrapper();
   },
 
+  setCurrentFrame(frameView) {
+    return this.set('currentFrame', frameView);
+  },
+
+  getCurrentFrame() {
+    return this.get('currentFrame');
+  },
+
+  getCurrentFrameModel() {
+    return (this.getCurrentFrame() || {}).model;
+  },
+
   /**
    * Return the count of changes made to the content and not yet stored.
    * This count resets at any `store()`
@@ -628,6 +725,10 @@ export default Backbone.Model.extend({
 
   getZoomDecimal() {
     return this.get('Canvas').getZoomDecimal();
+  },
+
+  getZoomMultiplier() {
+    return this.get('Canvas').getZoomMultiplier();
   },
 
   setDragMode(value) {
@@ -650,23 +751,23 @@ export default Backbone.Model.extend({
    * Destroy editor
    */
   destroyAll() {
-    const {
-      DomComponents,
-      CssComposer,
-      UndoManager,
-      Panels,
-      Canvas,
-      Keymaps
-    } = this.attributes;
-    DomComponents.clear();
-    CssComposer.clear();
-    UndoManager.clear().removeAll();
-    Panels.getPanels().reset();
-    Canvas.getCanvasView().remove();
-    Keymaps.removeAll();
+    const { config } = this;
+    const editor = this.getEditor();
+    const { editors = [] } = config.grapesjs || {};
+    this.stopDefault();
+    this.get('modules')
+      .slice()
+      .reverse()
+      .forEach(mod => mod.destroy());
     this.view.remove();
     this.stopListening();
-    $(this.config.el)
+    this.clear({ silent: true });
+    this.destroyed = 1;
+    ['config', 'view', '_previousAttributes', '_events', '_listeners'].forEach(
+      i => (this[i] = {})
+    );
+    editors.splice(editors.indexOf(editor), 1);
+    $(config.el)
       .empty()
       .attr(this.attrsOrig);
   },
@@ -702,6 +803,26 @@ export default Backbone.Model.extend({
 
   logError(msg, opts) {
     this.log(msg, { ...opts, level: 'error' });
+  },
+
+  initBaseColorPicker(el, opts = {}) {
+    const config = this.getConfig();
+    const { colorPicker = {} } = config;
+    const elToAppend = config.el;
+    const ppfx = config.stylePrefix;
+
+    return $(el).spectrum({
+      containerClassName: `${ppfx}one-bg ${ppfx}two-color`,
+      appendTo: elToAppend || 'body',
+      maxSelectionSize: 8,
+      showPalette: true,
+      palette: [],
+      showAlpha: true,
+      chooseText: 'Ok',
+      cancelText: '⨯',
+      ...opts,
+      ...colorPicker
+    });
   },
 
   /**

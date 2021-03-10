@@ -3,6 +3,7 @@ import DomComponents from 'dom_components';
 import Component from 'dom_components/model/Component';
 import ComponentImage from 'dom_components/model/ComponentImage';
 import ComponentText from 'dom_components/model/ComponentText';
+import ComponentTextNode from 'dom_components/model/ComponentTextNode';
 import ComponentLink from 'dom_components/model/ComponentLink';
 import ComponentMap from 'dom_components/model/ComponentMap';
 import ComponentVideo from 'dom_components/model/ComponentVideo';
@@ -14,11 +15,10 @@ const $ = Backbone.$;
 let obj;
 let dcomp;
 let compOpts;
-let em;
+let em = new Editor({});
 
 describe('Component', () => {
   beforeEach(() => {
-    em = new Editor({});
     dcomp = new DomComponents();
     compOpts = {
       em,
@@ -274,9 +274,9 @@ describe('Component', () => {
   });
 
   test('setAttributes overwrites correctly', () => {
-    obj.setAttributes({ id: 'test', 'data-test': 'value', a: 'b' });
-    obj.setAttributes({ 'data-test': 'value2' });
-    expect(obj.getAttributes()).toEqual({ 'data-test': 'value2' });
+    obj.setAttributes({ id: 'test', 'data-test': 'value', a: 'b', b: 'c' });
+    obj.setAttributes({ id: 'test2', 'data-test': 'value2' });
+    expect(obj.getAttributes()).toEqual({ id: 'test2', 'data-test': 'value2' });
   });
 
   test('append() returns always an array', () => {
@@ -481,6 +481,36 @@ describe('Text Component', () => {
   });
 });
 
+describe('Text Node Component', () => {
+  beforeEach(() => {
+    obj = new ComponentTextNode();
+  });
+
+  afterEach(() => {
+    obj = null;
+  });
+
+  test('Has content property', () => {
+    expect(obj.has('content')).toEqual(true);
+  });
+
+  test('Not droppable', () => {
+    expect(obj.get('droppable')).toEqual(false);
+  });
+
+  test('Not editable', () => {
+    expect(obj.get('editable')).toEqual(true);
+  });
+
+  test('Component toHTML with attributes', () => {
+    obj = new ComponentTextNode({
+      attributes: { 'data-test': 'value' },
+      content: `test content &<>"'`
+    });
+    expect(obj.toHTML()).toEqual('test content &amp;&lt;&gt;&quot;&#039;');
+  });
+});
+
 describe('Link Component', () => {
   const aEl = document.createElement('a');
 
@@ -561,6 +591,7 @@ describe('Components', () => {
     em = new Editor({});
     dcomp = new DomComponents();
     compOpts = {
+      em,
       componentTypes: dcomp.componentTypes
     };
   });
@@ -606,65 +637,28 @@ describe('Components', () => {
       </style>
     `;
     const added = dcomp.addComponent(block);
+    const addComps = added.components();
     // Let's check if everthing is working as expected
     expect(Object.keys(dcomp.componentsById).length).toBe(3); // + 1 wrapper
     expect(added.getId()).toBe(id);
-    expect(
-      added
-        .components()
-        .at(0)
-        .getId()
-    ).toBe(idB);
+    expect(addComps.at(0).getId()).toBe(idB);
     const cc = em.get('CssComposer');
-    expect(cc.getAll().length).toBe(3);
-    expect(
-      cc
-        .getAll()
-        .at(0)
-        .selectorsToString()
-    ).toBe(`#${id}`);
-    expect(
-      cc
-        .getAll()
-        .at(1)
-        .selectorsToString()
-    ).toBe(`#${id}:hover`);
-    expect(
-      cc
-        .getAll()
-        .at(2)
-        .selectorsToString()
-    ).toBe(`#${idB}`);
+    const rules = cc.getAll();
+    expect(rules.length).toBe(3);
+    expect(rules.at(0).selectorsToString()).toBe(`#${id}`);
+    expect(rules.at(1).selectorsToString()).toBe(`#${id}:hover`);
+    expect(rules.at(2).selectorsToString()).toBe(`#${idB}`);
     // Now let's add the same block
     const added2 = dcomp.addComponent(block);
+    const addComps2 = added2.components();
     const id2 = added2.getId();
     const newId = `${id}-2`;
     const newIdB = `${idB}-2`;
     expect(id2).toBe(newId);
-    expect(
-      added2
-        .components()
-        .at(0)
-        .getId()
-    ).toBe(newIdB);
-    expect(cc.getAll().length).toBe(6);
-    expect(
-      cc
-        .getAll()
-        .at(3)
-        .selectorsToString()
-    ).toBe(`#${newId}`);
-    expect(
-      cc
-        .getAll()
-        .at(4)
-        .selectorsToString()
-    ).toBe(`#${newId}:hover`);
-    expect(
-      cc
-        .getAll()
-        .at(5)
-        .selectorsToString()
-    ).toBe(`#${newIdB}`);
+    expect(addComps2.at(0).getId()).toBe(newIdB);
+    expect(rules.length).toBe(6);
+    expect(rules.at(3).selectorsToString()).toBe(`#${newId}`);
+    expect(rules.at(4).selectorsToString()).toBe(`#${newId}:hover`);
+    expect(rules.at(5).selectorsToString()).toBe(`#${newIdB}`);
   });
 });
